@@ -81,11 +81,11 @@ _K_MNIST_CITATION = """\
 """
 
 _EMNIST_CITATION = """\
-@article{cohen_afshar_tapson_schaik_2017, 
-    title={EMNIST: Extending MNIST to handwritten letters}, 
-    DOI={10.1109/ijcnn.2017.7966217}, 
-    journal={2017 International Joint Conference on Neural Networks (IJCNN)}, 
-    author={Cohen, Gregory and Afshar, Saeed and Tapson, Jonathan and Schaik, Andre Van}, 
+@article{cohen_afshar_tapson_schaik_2017,
+    title={EMNIST: Extending MNIST to handwritten letters},
+    DOI={10.1109/ijcnn.2017.7966217},
+    journal={2017 International Joint Conference on Neural Networks (IJCNN)},
+    author={Cohen, Gregory and Afshar, Saeed and Tapson, Jonathan and Schaik, Andre Van},
     year={2017}
 }
 """
@@ -96,6 +96,11 @@ class MNIST(tfds.core.GeneratorBasedBuilder):
   URL = _MNIST_URL
 
   VERSION = tfds.core.Version("1.0.0")
+  SUPPORTED_VERSIONS = [
+      tfds.core.Version("2.0.0", experiments={tfds.core.Experiment.S3: True}),
+  ]
+  # Version history:
+  # 2.0.0: S3 (new shuffling, sharding and slicing mechanism).
 
   def _info(self):
     return tfds.core.DatasetInfo(
@@ -127,7 +132,7 @@ class MNIST(tfds.core.GeneratorBasedBuilder):
     return [
         tfds.core.SplitGenerator(
             name=tfds.Split.TRAIN,
-            num_shards=10,
+            num_shards=10,  # Ignored when using a version with S3 experiment.
             gen_kwargs=dict(
                 num_examples=_TRAIN_EXAMPLES,
                 data_path=mnist_files["train_data"],
@@ -135,7 +140,7 @@ class MNIST(tfds.core.GeneratorBasedBuilder):
             )),
         tfds.core.SplitGenerator(
             name=tfds.Split.TEST,
-            num_shards=1,
+            num_shards=1,  # Ignored when using a version with S3 experiment.
             gen_kwargs=dict(
                 num_examples=_TEST_EXAMPLES,
                 data_path=mnist_files["test_data"],
@@ -159,11 +164,12 @@ class MNIST(tfds.core.GeneratorBasedBuilder):
     data = list(zip(images, labels))
 
     # Data is shuffled automatically to distribute classes uniformly.
-    for image, label in data:
-      yield {
-          "image": image,
-          "label": label,
-      }
+    for index, (image, label) in enumerate(data):
+      record = {"image": image, "label": label}
+      if self.version.implements(tfds.core.Experiment.S3):
+        yield index, record
+      else:
+        yield record
 
 
 class FashionMNIST(MNIST):
